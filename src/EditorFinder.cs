@@ -13,7 +13,8 @@ public static class EditorFinder
         var editorPaths = new List<string>();
         if (OperatingSystem.IsWindows())
         {
-            var regPaths = new[] {
+            var regPaths = new[]
+            {
                 Registry.CurrentUser,
                 Registry.LocalMachine
             };
@@ -35,11 +36,27 @@ public static class EditorFinder
                 }
             }
         }
+        else if (OperatingSystem.IsLinux())
+        {
+            var appFolder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            var editors = Path.Combine(appFolder, "Unity", "Hub", "Editor");
+            if (Directory.Exists(editors))
+            {
+                foreach (var versionPath in Directory.EnumerateDirectories(editors))
+                {
+                    var executablePath = Path.Combine(versionPath, "Unity");
+                    if (File.Exists(executablePath))
+                    {
+                        editorPaths.Add(executablePath);
+                    }
+                }
+            }
+        }
         else if (OperatingSystem.IsMacOS())
         {
             // There's no central place where macOS Unity installs advertise themselves,
             // so we just check the default installation path in Unity Hub.
-            
+
             var appFolder = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
             var editors = Path.Combine(appFolder, "Unity", "Hub", "Editor");
             if (Directory.Exists(editors))
@@ -91,12 +108,12 @@ public static class EditorFinder
 
     public static string GetDataPath(string editorPath)
     {
-        if (OperatingSystem.IsWindows())
+        if (OperatingSystem.IsWindows() || OperatingSystem.IsLinux())
             return Path.Combine(editorPath, "Data");
-    
+
         if (OperatingSystem.IsMacOS())
             return Path.Combine(editorPath, "Contents");
-    
+
         throw new PlatformNotSupportedException();
     }
 }

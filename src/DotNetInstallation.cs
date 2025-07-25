@@ -31,31 +31,55 @@ public sealed class DotNetInstallation
 
     private static DotNetInstallation GetCurrentInstallation()
     {
-        string? location = Environment.GetEnvironmentVariable("DOTNET_ROOT");
-
-        if (string.IsNullOrEmpty(location) && OperatingSystem.IsWindows())
-            location = GetWindowsRegistryDotNetInstallLocation();
+        var dotnetExe = OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet";
+        var location = Environment.GetEnvironmentVariable("DOTNET_ROOT");
 
         if (string.IsNullOrEmpty(location))
+        {
+            var systemPath = Environment.GetEnvironmentVariable("PATH")!.Split(Path.PathSeparator);
+            foreach (var path in systemPath)
+            {
+                var dotnetPath = Path.Combine(path, dotnetExe);
+                if (!IsValidDotnetRoot(dotnetPath, dotnetExe)) continue;
+                location = Path.GetDirectoryName(dotnetPath)!;
+                break;
+            }
+        }
+
+        if (OperatingSystem.IsWindows()
+            && !IsValidDotnetRoot(location, dotnetExe))
+            location = GetWindowsRegistryDotNetInstallLocation();
+
+        if (!IsValidDotnetRoot(location, dotnetExe))
             location = GetDefaultInstallationLocation();
+
+        if (string.IsNullOrEmpty(location))
+            throw new PlatformNotSupportedException("Could not find a valid .NET installation.");
 
         return new DotNetInstallation(location);
     }
 
+    private static bool IsValidDotnetRoot(string? location, string dotnetExe)
+    {
+        return !string.IsNullOrEmpty(location)
+               && File.Exists(Path.Combine(location, dotnetExe))
+               && Directory.Exists(Path.Combine(location, "sdk"));
+    }
+
     private static string GetDefaultInstallationLocation()
     {
-        if (OperatingSystem.IsWindows())
+        if (OperatingSystem.IsWindows() && Environment.Is64BitOperatingSystem)
             return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "dotnet");
 
-        if (OperatingSystem.IsMacOS())
+        if (OperatingSystem.IsMacOS() || OperatingSystem.IsLinux())
             return "/usr/local/share/dotnet";
-        
+
         throw new PlatformNotSupportedException();
     }
 
     [SupportedOSPlatform("windows")]
     private static string? GetWindowsRegistryDotNetInstallLocation()
     {
-        return Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\dotnet\Setup\InstalledVersions\x64", "InstallLocation", null) as string;
+        return Registry.LocalMachine.GetValue(@"SOFTWARE\dotnet\Setup\InstalledVersions\x64\InstallLocation", null) as string;
     }
 }
